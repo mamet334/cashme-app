@@ -134,9 +134,11 @@
         <span id="budget-spent">Rp 0</span>
         <span id="budget-limit">dari Rp 0</span>
       </div>
-      <div class="progress-bg" style="width: 100%; height: 10px; background: rgba(148,163,184,0.1); border-radius: 5px; overflow: hidden;">
+      <div class="progress-bg" style="width: 100%; height: 10px; background: rgba(148,163,184,0.1); border-radius: 5px; overflow: hidden; margin-bottom: 12px;">
         <div id="budget-progress-bar" style="height: 100%; width: 0%; background: #10B981; transition: width 0.3s ease, background 0.3s ease;"></div>
       </div>
+      <!-- Subscriptions List -->
+      <div id="subs-container" style="display: flex; flex-direction: column; gap: 8px;"></div>
     </section>
 
     <!-- ======== Wallets List ======== -->
@@ -258,15 +260,41 @@
         </div>
         <div class="form-group">
           <label class="form-label">Keterangan</label>
-          <input type="text" name="description" class="form-control" placeholder="Makan siang, bensin, dll..." maxlength="100">
+          <textarea name="description" class="form-control" rows="2" placeholder="Cth: Nasi Goreng"></textarea>
         </div>
         <button type="submit" class="btn-submit">Simpan Transaksi</button>
       </form>
     </div>
-    <!-- ======== Watermark ======== -->
-    <div class="watermark animate-in">
-      CashMe App by Mamet334
+  </div>
+
+  <!-- ======== Modal: Custom Prompt ======== -->
+  <div class="modal-overlay" id="modal-prompt" style="z-index: 10005;">
+    <div class="modal-content animate-in" style="max-width: 340px; padding: 24px;">
+      <h3 id="prompt-title" style="margin-bottom: 12px; font-size: 1.1rem;">Judul Prompt</h3>
+      <p id="prompt-message" style="margin-bottom: 16px; font-size: 0.85rem; color: var(--text-secondary);">Pesan prompt di sini.</p>
+      <input type="text" id="prompt-input" class="form-control" style="margin-bottom: 24px;" autocomplete="off">
+      <div style="display: flex; gap: 12px; justify-content: flex-end;">
+        <button id="prompt-cancel" style="background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 8px 16px; font-weight: 600;">Batal</button>
+        <button id="prompt-ok" class="btn-submit" style="width: auto; padding: 8px 20px;">Oke</button>
+      </div>
     </div>
+  </div>
+
+  <!-- ======== Modal: Custom Confirm ======== -->
+  <div class="modal-overlay" id="modal-confirm" style="z-index: 10006;">
+    <div class="modal-content animate-in confirm-pulse" style="max-width: 340px; padding: 24px; border: 1px solid var(--expense); box-shadow: 0 0 20px rgba(239, 68, 68, 0.2);">
+      <h3 id="confirm-title" style="margin-bottom: 12px; font-size: 1.1rem; color: var(--expense);">Peringatan!</h3>
+      <p id="confirm-message" style="margin-bottom: 24px; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5;">Pesan konfirmasi.</p>
+      <div style="display: flex; gap: 12px; justify-content: flex-end;">
+        <button id="confirm-cancel" style="background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 8px 16px; font-weight: 600;">Batal</button>
+        <button id="confirm-ok" style="background: var(--expense); color: white; border: none; border-radius: 6px; cursor: pointer; width: auto; padding: 8px 20px; font-weight: 600;">Ya, Hapus!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== Watermark ======== -->
+  <div class="watermark animate-in">
+    CashMe App by Mamet334
   </div>
 
   <!-- ======== Sync Modal ======== -->
@@ -280,17 +308,6 @@
         <button id="btn-sync-upload" class="btn-submit" style="margin: 0;">⬆️ Upload ke Cloud (Simpan)</button>
         <button id="btn-sync-download" class="btn-submit" style="margin: 0; background: var(--bg-secondary); color: var(--text-primary);">⬇️ Download dari Cloud (Muat)</button>
         <button id="btn-sync-cancel" class="filter-btn" style="margin-top: 8px;">Batal</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ======== Confirm Dialog ======== -->
-  <div class="confirm-overlay" id="confirm-dialog">
-    <div class="confirm-box">
-      <p>Yakin ingin menghapus transaksi ini?</p>
-      <div class="confirm-actions">
-        <button id="confirm-no">Batal</button>
-        <button id="confirm-yes">Hapus</button>
       </div>
     </div>
   </div>

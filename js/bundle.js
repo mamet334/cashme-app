@@ -30,7 +30,7 @@
   ];
 
   function formatRupiah(amount) {
-    return 'Rp ' + Math.abs(amount).toLocaleString('id-ID');
+    return (amount < 0 ? '-Rp ' : 'Rp ') + Math.abs(amount).toLocaleString('id-ID');
   }
 
   function formatDate(dateStr) {
@@ -196,17 +196,21 @@
       var lastPaid = sub.lastPaid ? new Date(sub.lastPaid) : new Date(0);
       if (today.getFullYear() > lastPaid.getFullYear() || (today.getFullYear() === lastPaid.getFullYear() && today.getMonth() > lastPaid.getMonth())) {
         if (today.getDate() >= sub.date) {
-          addTransaction({
-            type: 'expense',
-            category: 'Tagihan',
-            amount: sub.amount,
-            description: sub.name + ' (Auto)',
-            date: getTodayISO(),
-            walletId: 'default'
-          });
+          setTimeout(function() { 
+            showToast('🚨 Tagihan rutin "' + sub.name + '" jatuh tempo! Klik di sini untuk mencatat.', 'warning', function() {
+              openModal();
+              var form = document.getElementById('form-transaction');
+              if (form) {
+                form.querySelector('[name="type"]').value = 'expense';
+                updateCategoryOptions('expense');
+                form.querySelector('[name="category"]').value = 'Tagihan';
+                form.querySelector('[name="amount"]').value = sub.amount;
+                form.querySelector('[name="description"]').value = sub.name + ' (Rutin)';
+              }
+            }); 
+          }, 1000);
           sub.lastPaid = getTodayISO();
           changed = true;
-          setTimeout(function() { showToast('Tagihan ' + sub.name + ' otomatis dibayar!', 'info'); }, 3000);
         }
       }
     });
@@ -404,7 +408,7 @@
   function $$(sel) { return document.querySelectorAll(sel); }
 
   // ============ TOAST ============
-  function showToast(message, type) {
+  function showToast(message, type, onClick) {
     type = type || 'info';
     var container = $('#toast-container');
     if (!container) return;
@@ -412,9 +416,20 @@
     var toast = document.createElement('div');
     toast.className = 'toast toast-' + type;
     toast.innerHTML = '<span class="toast-icon">' + (icons[type] || icons.info) + '</span><span class="toast-message">' + message + '</span>';
+    
+    if (onClick) {
+      toast.style.cursor = 'pointer';
+      toast.title = 'Klik untuk aksi';
+      toast.addEventListener('click', function() {
+        onClick();
+        toast.classList.remove('show');
+        setTimeout(function() { toast.remove(); }, 300);
+      });
+    }
+    
     container.appendChild(toast);
     requestAnimationFrame(function () { toast.classList.add('show'); });
-    setTimeout(function () { toast.classList.remove('show'); setTimeout(function () { toast.remove(); }, 300); }, 3000);
+    setTimeout(function () { toast.classList.remove('show'); setTimeout(function () { toast.remove(); }, 300); }, onClick ? 10000 : 3000);
   }
 
   // ============ RENDER ============
@@ -529,16 +544,42 @@
     var html = '';
     goals.forEach(function(g) {
       var percent = g.target > 0 ? Math.min(100, Math.round((g.current / g.target) * 100)) : 0;
-      html += '<div class="stat-card" style="min-width: 200px; cursor: pointer; padding: 14px;" onclick="window.addFundToGoal(\'' + g.id + '\')">' +
+      html += '<div class="stat-card" style="min-width: 200px; cursor: pointer; padding: 14px; position: relative;" onclick="window.addFundToGoal(\'' + g.id + '\')">' +
+                '<button style="position:absolute; top:8px; right:8px; background:none; border:none; color:var(--expense); cursor:pointer; font-size:1.1rem; z-index:5;" title="Hapus Impian" onclick="event.stopPropagation(); window.deleteGoal(\'' + g.id + '\')">🗑️</button>' +
                 '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">' +
-                  '<span style="font-weight:600; font-size:0.9rem;">' + g.name + '</span>' +
+                  '<span style="font-weight:600; font-size:0.9rem; padding-right:32px;">' + g.name + '</span>' +
                   '<span style="font-size:0.8rem; color:var(--text-muted);">' + percent + '%</span>' +
                 '</div>' +
-                '<div style="font-size:1.1rem; font-weight:700; margin-bottom:8px; color:var(--income);">Rp ' + formatRupiah(g.current) + '</div>' +
+                '<div style="font-size:1.1rem; font-weight:700; margin-bottom:8px; color:var(--income);">' + formatRupiah(g.current) + '</div>' +
                 '<div style="width:100%; height:6px; background:var(--bg-secondary); border-radius:3px; overflow:hidden;">' +
                   '<div style="height:100%; width:' + percent + '%; background:var(--accent); border-radius:3px; transition:width 0.5s ease;"></div>' +
                 '</div>' +
-                '<div style="font-size:0.75rem; color:var(--text-muted); margin-top:8px; text-align:right;">Target: Rp ' + formatRupiah(g.target) + '</div>' +
+                '<div style="font-size:0.75rem; color:var(--text-muted); margin-top:8px; text-align:right;">Target: ' + formatRupiah(g.target) + '</div>' +
+              '</div>';
+    });
+    cont.innerHTML = html;
+  }
+
+  function renderSubscriptions() {
+    var subs = getSubscriptions();
+    var cont = document.getElementById('subs-container');
+    if (!cont) return;
+    if (subs.length === 0) {
+      cont.innerHTML = '';
+      return;
+    }
+    
+    var html = '<div style="font-size:0.8rem; font-weight:600; color:var(--text-muted); margin-top:8px;">Daftar Tagihan Rutin (' + subs.length + '):</div>';
+    subs.forEach(function(s) {
+      html += '<div class="stat-card" style="display:flex; justify-content:space-between; align-items:center; padding:12px; margin-top:0; cursor:pointer;" onclick="window.paySubscription(\'' + s.id + '\')" title="Klik untuk bayar">' +
+                '<div style="display:flex; flex-direction:column; gap:4px;">' +
+                  '<span style="font-weight:600; font-size:0.9rem;">' + s.name + '</span>' +
+                  '<span style="color:var(--text-muted); font-size:0.75rem;">Jatuh tempo tgl ' + s.date + '</span>' +
+                '</div>' +
+                '<div style="display:flex; align-items:center; gap:12px;">' +
+                  '<span style="color:var(--expense); font-weight:700; font-size:0.95rem;">' + formatRupiah(s.amount) + '</span>' +
+                  '<button style="background:var(--bg-secondary); border:none; color:var(--text-muted); cursor:pointer; font-size:1rem; border-radius: 8px; width: 32px; height: 32px; display:flex; align-items:center; justify-content:center; transition:0.2s;" onclick="event.stopPropagation(); window.deleteSubscription(\'' + s.id + '\')" title="Hapus Tagihan">🗑️</button>' +
+                '</div>' +
               '</div>';
     });
     cont.innerHTML = html;
@@ -581,6 +622,7 @@
     renderBudget();
     renderWallets();
     renderGoals();
+    renderSubscriptions();
     renderTransactionList();
     renderCharts();
     renderStreak();
@@ -595,6 +637,91 @@
     var custom = getCustomCategories().filter(function(c) { return c.type === type; });
     var cats = builtin.concat(custom);
     sel.innerHTML = cats.map(function (c) { return '<option value="' + c.id + '">' + c.icon + ' ' + c.label + '</option>'; }).join('');
+  }
+
+  // ============ CUSTOM PROMPT ============
+  function customPrompt(title, message, defaultValue, callback) {
+    var modal = document.getElementById('modal-prompt');
+    var titleEl = document.getElementById('prompt-title');
+    var msgEl = document.getElementById('prompt-message');
+    var inputEl = document.getElementById('prompt-input');
+    var btnOk = document.getElementById('prompt-ok');
+    var btnCancel = document.getElementById('prompt-cancel');
+    
+    if (!modal) {
+      var res = prompt(message, defaultValue || '');
+      if (callback) callback(res);
+      return;
+    }
+    
+    titleEl.textContent = title;
+    msgEl.textContent = message;
+    inputEl.value = defaultValue || '';
+    modal.classList.add('active');
+    
+    // Auto focus
+    setTimeout(function() { inputEl.focus(); }, 100);
+    
+    function cleanup() {
+      btnOk.removeEventListener('click', onOk);
+      btnCancel.removeEventListener('click', onCancel);
+      modal.classList.remove('active');
+    }
+    
+    function onOk() {
+      var val = inputEl.value;
+      cleanup();
+      if (callback) callback(val);
+    }
+    function onCancel() {
+      cleanup();
+      if (callback) callback(null);
+    }
+    
+    // Allow enter key
+    inputEl.onkeydown = function(e) {
+      if (e.key === 'Enter') onOk();
+      if (e.key === 'Escape') onCancel();
+    };
+    
+    btnOk.addEventListener('click', onOk);
+    btnCancel.addEventListener('click', onCancel);
+  }
+
+  // ============ CUSTOM CONFIRM ============
+  function customConfirm(title, message, callback) {
+    var modal = document.getElementById('modal-confirm');
+    var titleEl = document.getElementById('confirm-title');
+    var msgEl = document.getElementById('confirm-message');
+    var btnOk = document.getElementById('confirm-ok');
+    var btnCancel = document.getElementById('confirm-cancel');
+    
+    if (!modal) {
+      if (callback) callback(confirm(message));
+      return;
+    }
+    
+    titleEl.textContent = title;
+    msgEl.textContent = message;
+    modal.classList.add('active');
+    
+    function cleanup() {
+      btnOk.removeEventListener('click', onOk);
+      btnCancel.removeEventListener('click', onCancel);
+      modal.classList.remove('active');
+    }
+    
+    function onOk() {
+      cleanup();
+      if (callback) callback(true);
+    }
+    function onCancel() {
+      cleanup();
+      if (callback) callback(false);
+    }
+    
+    btnOk.addEventListener('click', onOk);
+    btnCancel.addEventListener('click', onCancel);
   }
 
   function updateWalletOptions() {
@@ -815,29 +942,32 @@
     // Add Wallet
     var addWalletBtn = document.getElementById('btn-add-wallet');
     if (addWalletBtn) addWalletBtn.addEventListener('click', function() {
-      var name = prompt('Masukkan nama dompet baru (misal: BCA, Gopay):');
-      if (name && name.trim()) {
-        var wallets = getWallets();
-        wallets.push({ id: 'w_' + generateId(), name: name.trim() });
-        saveWallets(wallets);
-        refreshAll();
-        showToast('Dompet ditambahkan', 'success');
-      }
+      customPrompt('Tambah Dompet', 'Masukkan nama dompet baru (misal: BCA, Gopay):', '', function(name) {
+        if (name && name.trim()) {
+          var wallets = getWallets();
+          wallets.push({ id: 'w_' + generateId(), name: name.trim() });
+          saveWallets(wallets);
+          refreshAll();
+          showToast('Dompet ditambahkan', 'success');
+        }
+      });
     });
 
     // Add Goal
     var addGoalBtn = document.getElementById('btn-add-goal');
     if (addGoalBtn) addGoalBtn.addEventListener('click', function() {
-      var name = prompt('Nama Target Impian (misal: Liburan, Beli Motor):');
-      if (!name) return;
-      var target = prompt('Berapa target dana yang dikumpulkan? (angka saja):');
-      if (!target || isNaN(Number(target))) return showToast('Nominal target tidak valid', 'error');
-      
-      var goals = getGoals();
-      goals.push({ id: 'g_' + generateId(), name: name.trim(), target: Number(target), current: 0 });
-      saveGoals(goals);
-      refreshAll();
-      showToast('Target Impian ditambahkan!', 'success');
+      customPrompt('Target Impian', 'Nama Target Impian (misal: Liburan, Beli Motor):', '', function(name) {
+        if (!name) return;
+        customPrompt('Target Dana', 'Berapa target dana yang dikumpulkan? (angka saja):', '', function(target) {
+          if (!target || isNaN(Number(target))) return showToast('Nominal target tidak valid', 'error');
+          
+          var goals = getGoals();
+          goals.push({ id: 'g_' + generateId(), name: name.trim(), target: Number(target), current: 0 });
+          saveGoals(goals);
+          refreshAll();
+          showToast('Target Impian ditambahkan!', 'success');
+        });
+      });
     });
 
     window.addFundToGoal = function(goalId) {
@@ -846,66 +976,109 @@
       if (gIdx === -1) return;
       
       var g = goals[gIdx];
-      var amt = prompt('Berapa uang yang ingin disisihkan ke target "' + g.name + '" saat ini?');
-      if (!amt || isNaN(Number(amt)) || Number(amt) <= 0) return;
-      
-      var numAmt = Number(amt);
-      
-      // Auto-create expense from default wallet
-      addTransaction({
-        type: 'expense',
-        category: 'Lainnya',
-        amount: numAmt,
-        description: 'Tabungan: ' + g.name,
-        date: getTodayISO(),
-        walletId: 'default'
+      customPrompt('Nabung', 'Berapa uang yang ingin disisihkan ke target "' + g.name + '" saat ini?', '', function(amt) {
+        if (!amt || isNaN(Number(amt)) || Number(amt) <= 0) return;
+        
+        var numAmt = Number(amt);
+        addTransaction({
+          type: 'expense',
+          category: 'Lainnya',
+          amount: numAmt,
+          description: 'Tabungan: ' + g.name,
+          date: getTodayISO(),
+          walletId: 'default'
+        });
+        
+        g.current += numAmt;
+        goals[gIdx] = g;
+        saveGoals(goals);
+        refreshAll();
+        showToast('Dana berhasil disisihkan ke Tabungan!', 'success');
       });
+    };
+
+    window.deleteGoal = function(goalId) {
+      customConfirm('Hapus Impian?', 'Peringatan: Impian Anda tidak akan terkabul bila ini dihapus! Tetap hapus?', function(yes) {
+        if (yes) {
+          var goals = getGoals();
+          goals = goals.filter(function(g) { return g.id !== goalId; });
+          saveGoals(goals);
+          refreshAll();
+          showToast('Impian telah dihapus...', 'warning');
+        }
+      });
+    };
+
+    window.deleteSubscription = function(subId) {
+      customConfirm('Hapus Tagihan?', 'Yakin ingin menghapus jadwal tagihan rutin ini?', function(yes) {
+        if (yes) {
+          var subs = getSubscriptions();
+          subs = subs.filter(function(s) { return s.id !== subId; });
+          saveSubscriptions(subs);
+          refreshAll();
+          showToast('Tagihan rutin dihapus', 'info');
+        }
+      });
+    };
+
+    window.paySubscription = function(subId) {
+      var subs = getSubscriptions();
+      var sub = subs.find(function(s) { return s.id === subId; });
+      if (!sub) return;
       
-      g.current += numAmt;
-      goals[gIdx] = g;
-      saveGoals(goals);
-      refreshAll();
-      showToast('Dana berhasil disisihkan ke Tabungan!', 'success');
+      openModal();
+      var form = document.getElementById('form-transaction');
+      if (form) {
+        form.querySelector('[name="type"]').value = 'expense';
+        updateCategoryOptions('expense');
+        form.querySelector('[name="category"]').value = 'Tagihan';
+        form.querySelector('[name="amount"]').value = sub.amount;
+        form.querySelector('[name="description"]').value = sub.name + ' (Rutin)';
+      }
     };
 
     // Set Budget
     var btnSetBudget = document.getElementById('btn-set-budget');
     if (btnSetBudget) btnSetBudget.addEventListener('click', function() {
       var curr = getMonthlyBudget();
-      var val = prompt('Masukkan batas maksimal pengeluaran bulan ini (angka saja):', curr === 0 ? '' : curr);
-      if (val !== null) {
-        var num = Number(val);
-        if (!isNaN(num) && num >= 0) {
-          saveMonthlyBudget(num);
-          refreshAll();
-          showToast('Batas pengeluaran diatur', 'success');
-        } else {
-          showToast('Angka tidak valid', 'error');
+      customPrompt('Atur Batas', 'Masukkan batas maksimal pengeluaran bulan ini (angka saja):', curr === 0 ? '' : curr, function(val) {
+        if (val !== null) {
+          var num = Number(val);
+          if (!isNaN(num) && num >= 0) {
+            saveMonthlyBudget(num);
+            refreshAll();
+            showToast('Batas pengeluaran diatur', 'success');
+          } else {
+            showToast('Angka tidak valid', 'error');
+          }
         }
-      }
+      });
     });
 
     // Add Subscription
     var btnAddSub = document.getElementById('btn-add-sub');
     if (btnAddSub) btnAddSub.addEventListener('click', function() {
-      var name = prompt('Nama tagihan rutin (misal: Netflix, Listrik):');
-      if (!name) return;
-      var amt = prompt('Nominal tagihan setiap bulannya:');
-      if (!amt || isNaN(Number(amt))) return showToast('Nominal tidak valid', 'error');
-      var date = prompt('Tanggal berapa jatuh temponya setiap bulan? (1-31):');
-      if (!date || isNaN(Number(date)) || Number(date) < 1 || Number(date) > 31) return showToast('Tanggal tidak valid', 'error');
-      
-      var subs = getSubscriptions();
-      subs.push({
-        id: 's_' + generateId(),
-        name: name.trim(),
-        amount: Number(amt),
-        date: Number(date),
-        category: 'Tagihan',
-        lastPaid: null
+      customPrompt('Tagihan Rutin', 'Nama tagihan rutin (misal: Netflix, Listrik):', '', function(name) {
+        if (!name) return;
+        customPrompt('Nominal Tagihan', 'Nominal tagihan setiap bulannya:', '', function(amt) {
+          if (!amt || isNaN(Number(amt))) return showToast('Nominal tidak valid', 'error');
+          customPrompt('Jadwal Tagihan', 'Tanggal berapa jatuh temponya setiap bulan? (1-31):', '', function(date) {
+            if (!date || isNaN(Number(date)) || Number(date) < 1 || Number(date) > 31) return showToast('Tanggal tidak valid', 'error');
+            
+            var subs = getSubscriptions();
+            subs.push({
+              id: 's_' + generateId(),
+              name: name.trim(),
+              amount: Number(amt),
+              date: Number(date),
+              category: 'Tagihan',
+              lastPaid: null
+            });
+            saveSubscriptions(subs);
+            showToast('Tagihan rutin berhasil dijadwalkan!', 'success');
+          });
+        });
       });
-      saveSubscriptions(subs);
-      showToast('Tagihan rutin berhasil dijadwalkan!', 'success');
     });
 
     // Modal close
@@ -1017,18 +1190,13 @@
       var delBtn = e.target.closest('.btn-tx-delete');
       if (editBtn) openModal(editBtn.dataset.id);
       else if (delBtn) {
-        var cDialog = document.getElementById('confirm-dialog');
-        if (cDialog) {
-          cDialog.classList.add('active');
-          document.body.style.overflow = 'hidden';
-          var yesBtn = document.getElementById('confirm-yes');
-          var noBtn = document.getElementById('confirm-no');
-          function onYes() { deleteTransaction(delBtn.dataset.id); showToast('Transaksi dihapus', 'info'); cDialog.classList.remove('active'); document.body.style.overflow = ''; refreshAll(); cleanup(); }
-          function onNo() { cDialog.classList.remove('active'); document.body.style.overflow = ''; cleanup(); }
-          function cleanup() { yesBtn.removeEventListener('click', onYes); noBtn.removeEventListener('click', onNo); }
-          yesBtn.addEventListener('click', onYes);
-          noBtn.addEventListener('click', onNo);
-        }
+        customConfirm('Hapus Transaksi', 'Yakin ingin menghapus transaksi ini?', function(yes) {
+          if (yes) {
+            deleteTransaction(delBtn.dataset.id);
+            showToast('Transaksi dihapus', 'info');
+            refreshAll();
+          }
+        });
       }
     });
 
@@ -1043,12 +1211,6 @@
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') closeModal();
       if (e.key === 'n' && e.ctrlKey) { e.preventDefault(); openModal(); }
-    });
-
-    // Confirm backdrop
-    var cDialog = document.getElementById('confirm-dialog');
-    if (cDialog) cDialog.addEventListener('click', function (e) {
-      if (e.target === cDialog) { cDialog.classList.remove('active'); document.body.style.overflow = ''; }
     });
 
     // Sync Modal
@@ -1155,12 +1317,14 @@
     
     if (btnForgotPin) {
       btnForgotPin.addEventListener('click', function() {
-        if (confirm('Anda yakin ingin mereset PIN? Jika Anda lupa PIN, mereset akan menghapus kunci PIN. Lanjutkan?')) {
-          localStorage.removeItem('cashme_pin');
-          savedPin = null;
-          pinScreen.classList.remove('active');
-          showToast('PIN berhasil di-reset', 'info');
-        }
+        customConfirm('Reset PIN?', 'Anda yakin ingin mereset PIN? Jika Anda lupa PIN, mereset akan menghapus kunci PIN. Lanjutkan?', function(yes) {
+          if (yes) {
+            localStorage.removeItem('cashme_pin');
+            savedPin = null;
+            pinScreen.classList.remove('active');
+            showToast('PIN berhasil di-reset', 'info');
+          }
+        });
       });
     }
 
