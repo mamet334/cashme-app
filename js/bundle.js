@@ -408,7 +408,7 @@
   }
 
   // ============ GOOGLE DRIVE SYNC ============
-  var GOOGLE_CLIENT_ID = '104814767416 - nrpt75vo49jb2pl9db9i0ra0frvalt5t.apps.googleusercontent.com';
+  var GOOGLE_CLIENT_ID = '104814767416-nrpt75vo49jb2pl9db9i0ra0frvalt5t.apps.googleusercontent.com';
   var DRIVE_FILE_NAME = 'cashme_data.json';
   var tokenClient = null;
   var accessToken = null;
