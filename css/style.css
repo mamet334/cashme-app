@@ -767,3 +767,16 @@ select.form-control {
 @media (min-width: 768px) {
   .app-container { padding-bottom: 40px; }
 }
+
+/* ========================================
+   Watermark
+   ======================================== */
+.watermark {
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  padding: 20px 0 10px;
+  font-weight: 500;
+  opacity: 0.5;
+  margin-top: 10px;
+}
