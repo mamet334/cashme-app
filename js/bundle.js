@@ -47,8 +47,17 @@
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
 
+  function getCustomCategories() {
+    try { var d = localStorage.getItem('cashme_categories'); return d ? JSON.parse(d) : []; }
+    catch (e) { return []; }
+  }
+
+  function getAllCategories() {
+    return INCOME_CATEGORIES.concat(EXPENSE_CATEGORIES).concat(getCustomCategories());
+  }
+
   function getCategoryById(id) {
-    return INCOME_CATEGORIES.concat(EXPENSE_CATEGORIES).find(function (c) { return c.id === id; }) || null;
+    return getAllCategories().find(function (c) { return c.id === id; }) || null;
   }
 
   function debounce(fn, delay) {
@@ -62,9 +71,76 @@
 
   // ============ STORAGE ============
   var STORAGE_KEY = 'cashme_transactions';
+  var STORAGE_WALLETS = 'cashme_wallets';
+  var STORAGE_BUDGET = 'cashme_budget';
+  var STORAGE_STREAK = 'cashme_streak';
+  var STORAGE_GOALS = 'cashme_goals';
+
+  function getStreak() {
+    try { var d = localStorage.getItem(STORAGE_STREAK); return d ? JSON.parse(d) : { count: 0, lastDate: null }; }
+    catch (e) { return { count: 0, lastDate: null }; }
+  }
+  function saveStreak(s) { localStorage.setItem(STORAGE_STREAK, JSON.stringify(s)); }
+
+  function updateStreak() {
+    var s = getStreak();
+    var today = getTodayISO();
+    if (s.lastDate === today) return false;
+
+    if (!s.lastDate) {
+      s.count = 1;
+    } else {
+      var last = new Date(s.lastDate);
+      var now = new Date(today);
+      var diff = Math.floor((now - last) / (1000 * 60 * 60 * 24));
+      if (diff === 1) s.count++;
+      else if (diff > 1) s.count = 1;
+    }
+    s.lastDate = today;
+    saveStreak(s);
+    return true;
+  }
+
+  function getMonthlyBudget() {
+    return Number(localStorage.getItem(STORAGE_BUDGET)) || 0;
+  }
+  function saveMonthlyBudget(val) {
+    localStorage.setItem(STORAGE_BUDGET, val);
+  }
+
+  function getWallets() {
+    try { var d = localStorage.getItem(STORAGE_WALLETS); return d ? JSON.parse(d) : [{ id: 'default', name: 'Dompet Utama' }]; }
+    catch (e) { return [{ id: 'default', name: 'Dompet Utama' }]; }
+  }
+  
+  function saveWallets(w) {
+    localStorage.setItem(STORAGE_WALLETS, JSON.stringify(w));
+  }
+  
+  function getGoals() {
+    try { var d = localStorage.getItem('cashme_goals'); return d ? JSON.parse(d) : []; }
+    catch (e) { return []; }
+  }
+  function saveGoals(goals) { localStorage.setItem('cashme_goals', JSON.stringify(goals)); }
+
+  function getSubscriptions() {
+    try { var d = localStorage.getItem('cashme_subs'); return d ? JSON.parse(d) : []; }
+    catch (e) { return []; }
+  }
+  function saveSubscriptions(subs) { localStorage.setItem('cashme_subs', JSON.stringify(subs)); }
 
   function getTransactions() {
-    try { var d = localStorage.getItem(STORAGE_KEY); return d ? JSON.parse(d) : []; }
+    try { 
+      var d = localStorage.getItem(STORAGE_KEY); 
+      var txs = d ? JSON.parse(d) : []; 
+      // MIGRATION: Add default walletId to old transactions
+      var migrated = false;
+      txs.forEach(function(tx) {
+        if (!tx.walletId) { tx.walletId = 'default'; migrated = true; }
+      });
+      if (migrated) saveTransactions(txs);
+      return txs;
+    }
     catch (e) { return []; }
   }
 
@@ -77,11 +153,68 @@
     var tx = {
       id: generateId(), type: data.type, category: data.category,
       amount: Math.abs(Number(data.amount)), description: data.description || '',
-      date: data.date, createdAt: new Date().toISOString()
+      date: data.date, walletId: data.walletId || 'default', createdAt: new Date().toISOString()
     };
     txs.unshift(tx);
     saveTransactions(txs);
+    
+    // Gamification & Motivasi
+    if (tx.date === getTodayISO()) {
+      var streakUp = updateStreak();
+      if (streakUp) {
+        var s = getStreak();
+        if (s.count >= 3) setTimeout(function() { showToast('Luar biasa! Streak ' + s.count + ' hari! 🔥', 'success'); }, 1500);
+      }
+    }
+    if (tx.type === 'expense') {
+      var limit = getMonthlyBudget();
+      var txDate = new Date(tx.date);
+      var stats = getStats(txDate.getMonth(), txDate.getFullYear());
+      
+      if (limit > 0 && stats.expense > limit) {
+        setTimeout(function() { showToast('⚠️ AWAS! Anda telah melewati batas pengeluaran bulan ini!', 'error'); }, 2000);
+      } else if (limit > 0 && stats.expense >= limit * 0.9) {
+        setTimeout(function() { showToast('Hati-hati! Pengeluaran Anda hampir mencapai batas bulan ini.', 'warning'); }, 2000);
+      }
+
+      if (tx.amount <= 20000) {
+        setTimeout(function() { showToast('Pengeluaran kecil yang bagus! Hemat! 👏', 'info'); }, 1000);
+      } else if (tx.amount > 500000) {
+        setTimeout(function() { showToast('Wow, lumayan besar! Hati-hati boros ya 💸', 'warning'); }, 1000);
+      }
+    }
+    
     return tx;
+  }
+
+  function checkSubscriptions() {
+    var subs = getSubscriptions();
+    var changed = false;
+    var today = new Date();
+    
+    subs.forEach(function(sub) {
+      var lastPaid = sub.lastPaid ? new Date(sub.lastPaid) : new Date(0);
+      if (today.getFullYear() > lastPaid.getFullYear() || (today.getFullYear() === lastPaid.getFullYear() && today.getMonth() > lastPaid.getMonth())) {
+        if (today.getDate() >= sub.date) {
+          addTransaction({
+            type: 'expense',
+            category: 'Tagihan',
+            amount: sub.amount,
+            description: sub.name + ' (Auto)',
+            date: getTodayISO(),
+            walletId: 'default'
+          });
+          sub.lastPaid = getTodayISO();
+          changed = true;
+          setTimeout(function() { showToast('Tagihan ' + sub.name + ' otomatis dibayar!', 'info'); }, 3000);
+        }
+      }
+    });
+    
+    if (changed) {
+      saveSubscriptions(subs);
+      refreshAll();
+    }
   }
 
   function updateTransaction(id, data) {
@@ -90,6 +223,7 @@
     if (idx === -1) return null;
     txs[idx] = Object.assign({}, txs[idx], data, {
       amount: data.amount ? Math.abs(Number(data.amount)) : txs[idx].amount,
+      walletId: data.walletId || txs[idx].walletId || 'default',
       updatedAt: new Date().toISOString()
     });
     saveTransactions(txs);
@@ -124,6 +258,16 @@
     return bal;
   }
 
+  function getWalletBalance(walletId) {
+    var bal = 0;
+    getTransactions().forEach(function (tx) {
+      if (tx.walletId === walletId || (!tx.walletId && walletId === 'default')) {
+        bal += tx.type === 'income' ? tx.amount : -tx.amount;
+      }
+    });
+    return bal;
+  }
+
   function getExpenseByCategory(month, year) {
     var result = {};
     getTransactions().forEach(function (tx) {
@@ -154,10 +298,13 @@
 
   function downloadCSV() {
     var txs = getTransactions();
+    var wallets = getWallets();
     if (!txs.length) return false;
-    var lines = ['Tanggal,Tipe,Kategori,Jumlah,Keterangan'];
+    var lines = ['Tanggal,Tipe,Kategori,Dompet,Jumlah,Keterangan'];
     txs.forEach(function (tx) {
-      lines.push([tx.date, tx.type === 'income' ? 'Pemasukan' : 'Pengeluaran', tx.category, tx.amount, '"' + (tx.description || '').replace(/"/g, '""') + '"'].join(','));
+      var w = wallets.find(function(w) { return w.id === (tx.walletId || 'default'); });
+      var wName = w ? w.name : 'Dompet Utama';
+      lines.push([tx.date, tx.type === 'income' ? 'Pemasukan' : 'Pengeluaran', tx.category, wName, tx.amount, '"' + (tx.description || '').replace(/"/g, '""') + '"'].join(','));
     });
     var blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
     var a = document.createElement('a');
@@ -330,23 +477,131 @@
     var cnt = $('#tx-count'); if (cnt) cnt.textContent = txs.length + ' transaksi';
   }
 
+  function renderWallets() {
+    var container = $('#wallets-container');
+    if (!container) return;
+    var wallets = getWallets();
+    var html = '';
+    wallets.forEach(function(w) {
+      var bal = getWalletBalance(w.id);
+      html += '<div class="stat-card" style="min-width: 140px; padding: 12px; flex: 0 0 auto;">' +
+        '<div class="card-header" style="margin-bottom: 4px;"><div class="card-icon" style="font-size: 1rem; padding: 4px;">💳</div><span class="card-label" style="font-size: 0.75rem;">' + w.name + '</span></div>' +
+        '<div class="card-value ' + (bal < 0 ? 'negative' : '') + '" style="font-size: 1rem;">' + formatRupiah(bal) + '</div>' +
+        '</div>';
+    });
+    container.innerHTML = html;
+  }
+
+  function renderBudget() {
+    var budget = getMonthlyBudget();
+    var spentEl = $('#budget-spent');
+    var limitEl = $('#budget-limit');
+    var barEl = $('#budget-progress-bar');
+    if (!spentEl || !limitEl || !barEl) return;
+
+    var stats = getStats(currentFilter.month, currentFilter.year);
+    var expense = stats.expense;
+
+    if (budget === 0) {
+      spentEl.textContent = formatRupiah(expense);
+      limitEl.textContent = 'Batas belum diatur';
+      barEl.style.width = '0%';
+    } else {
+      spentEl.textContent = formatRupiah(expense);
+      limitEl.textContent = 'dari ' + formatRupiah(budget);
+      var pct = Math.min((expense / budget) * 100, 100);
+      barEl.style.width = pct + '%';
+      if (pct < 70) barEl.style.background = '#10B981';
+      else if (pct < 90) barEl.style.background = '#F59E0B';
+      else barEl.style.background = '#EF4444';
+    }
+  }
+
+  function renderGoals() {
+    var cont = $('#goals-list');
+    if (!cont) return;
+    var goals = getGoals();
+    if (!goals.length) {
+      cont.innerHTML = '<div style="font-size:0.85rem; color:var(--text-muted); padding: 12px 0;">Belum ada target impian.</div>';
+      return;
+    }
+    
+    var html = '';
+    goals.forEach(function(g) {
+      var percent = g.target > 0 ? Math.min(100, Math.round((g.current / g.target) * 100)) : 0;
+      html += '<div class="stat-card" style="min-width: 200px; cursor: pointer; padding: 14px;" onclick="window.addFundToGoal(\'' + g.id + '\')">' +
+                '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">' +
+                  '<span style="font-weight:600; font-size:0.9rem;">' + g.name + '</span>' +
+                  '<span style="font-size:0.8rem; color:var(--text-muted);">' + percent + '%</span>' +
+                '</div>' +
+                '<div style="font-size:1.1rem; font-weight:700; margin-bottom:8px; color:var(--income);">Rp ' + formatRupiah(g.current) + '</div>' +
+                '<div style="width:100%; height:6px; background:var(--bg-secondary); border-radius:3px; overflow:hidden;">' +
+                  '<div style="height:100%; width:' + percent + '%; background:var(--accent); border-radius:3px; transition:width 0.5s ease;"></div>' +
+                '</div>' +
+                '<div style="font-size:0.75rem; color:var(--text-muted); margin-top:8px; text-align:right;">Target: Rp ' + formatRupiah(g.target) + '</div>' +
+              '</div>';
+    });
+    cont.innerHTML = html;
+  }
+
   function renderCharts() {
     renderDonutChart(getExpenseByCategory(currentFilter.month, currentFilter.year));
     renderBarChart(getMonthlyTrend(6));
   }
 
+  function renderStreak() {
+    var s = getStreak();
+    var badge = $('#streak-badge');
+    if (!badge) return;
+    
+    if (s.lastDate) {
+      var diff = Math.floor((new Date(getTodayISO()) - new Date(s.lastDate)) / (1000 * 60 * 60 * 24));
+      if (diff > 1) { s.count = 0; saveStreak(s); }
+    }
+
+    if (s.count > 0) {
+      badge.style.display = 'block';
+      badge.textContent = '🔥 ' + s.count + ' Hari';
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+
+  var autoUploadTimer;
+  function autoUploadToDrive() {
+    if (!accessToken) return;
+    clearTimeout(autoUploadTimer);
+    autoUploadTimer = setTimeout(function() {
+      if (typeof uploadToDrive === 'function') uploadToDrive(true);
+    }, 5000);
+  }
+
   function refreshAll() {
     renderDashboard();
+    renderBudget();
+    renderWallets();
+    renderGoals();
     renderTransactionList();
     renderCharts();
+    renderStreak();
+    autoUploadToDrive();
   }
 
   // ============ MODAL ============
   function updateCategoryOptions(type) {
     var sel = document.querySelector('[name="category"]');
     if (!sel) return;
-    var cats = type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+    var builtin = type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+    var custom = getCustomCategories().filter(function(c) { return c.type === type; });
+    var cats = builtin.concat(custom);
     sel.innerHTML = cats.map(function (c) { return '<option value="' + c.id + '">' + c.icon + ' ' + c.label + '</option>'; }).join('');
+  }
+
+  function updateWalletOptions() {
+    var sel = document.querySelector('[name="walletId"]');
+    if (!sel) return;
+    var wallets = getWallets();
+    sel.innerHTML = wallets.map(function(w) { return '<option value="' + w.id + '">💳 ' + w.name + '</option>'; }).join('');
   }
 
   function openModal(txId) {
@@ -363,7 +618,9 @@
       if (!tx) return;
       form.querySelector('[name="type"]').value = tx.type;
       updateCategoryOptions(tx.type);
+      updateWalletOptions();
       form.querySelector('[name="category"]').value = tx.category;
+      if (form.querySelector('[name="walletId"]')) form.querySelector('[name="walletId"]').value = tx.walletId || 'default';
       form.querySelector('[name="amount"]').value = tx.amount;
       form.querySelector('[name="description"]').value = tx.description || '';
       form.querySelector('[name="date"]').value = tx.date;
@@ -372,6 +629,7 @@
       form.querySelector('[name="date"]').value = getTodayISO();
       form.querySelector('[name="type"]').value = 'expense';
       updateCategoryOptions('expense');
+      updateWalletOptions();
     }
     modal.classList.add('active');
     document.body.style.overflow = 'hidden';
@@ -448,13 +706,22 @@
     return (data.files && data.files.length > 0) ? data.files[0].id : null;
   }
 
-  function uploadToDrive() {
+  function uploadToDrive(silent) {
     ensureGoogleLogin(async function () {
-      showToast('Sedang menyimpan ke awan...', 'info');
+      if (!silent) showToast('Sedang menyimpan ke awan...', 'info');
       try {
         var fileId = await findDriveFile();
-        var txs = getTransactions();
-        var fileContent = JSON.stringify(txs);
+        
+        var dataToSave = {
+          transactions: getTransactions(),
+          wallets: getWallets(),
+          budget: getMonthlyBudget(),
+          budget: getMonthlyBudget(),
+          streak: getStreak(),
+          goals: getGoals(),
+          subs: getSubscriptions()
+        };
+        var fileContent = JSON.stringify(dataToSave);
         var metadata = { name: DRIVE_FILE_NAME };
         
         if (!fileId) metadata.parents = ['appDataFolder'];
@@ -487,15 +754,15 @@
           body: body
         });
 
-        if (res.ok) showToast('Berhasil disimpan ke Cloud! ☁️', 'success');
-        else {
-          var err = await res.text();
-          console.error(err);
-          showToast('Gagal upload ke Cloud (Lihat Konsol)', 'error');
+        if (res.ok) {
+           if (!silent) showToast('Berhasil disimpan ke Cloud! ☁️', 'success');
+        } else {
+           if (!silent) showToast('Gagal upload ke Cloud (Lihat Konsol)', 'error');
+           console.error(await res.text());
         }
       } catch (e) {
         console.error(e);
-        showToast('Terjadi kesalahan sinkronisasi', 'error');
+        if (!silent) showToast('Terjadi kesalahan sinkronisasi', 'error');
       }
     });
   }
@@ -510,7 +777,18 @@
         var res = await fetch('https://www.googleapis.com/drive/v3/files/' + fileId + '?alt=media', { headers: { Authorization: 'Bearer ' + accessToken } });
         if (res.ok) {
           var data = await res.json();
-          saveTransactions(data);
+          // Mendukung format lama dan baru
+          if (Array.isArray(data)) {
+            saveTransactions(data);
+          } else {
+            if (data.transactions) saveTransactions(data.transactions);
+            if (data.wallets) saveWallets(data.wallets);
+            if (data.budget !== undefined) saveMonthlyBudget(data.budget);
+            if (data.budget !== undefined) saveMonthlyBudget(data.budget);
+            if (data.streak) saveStreak(data.streak);
+            if (data.goals) saveGoals(data.goals);
+            if (data.subs) saveSubscriptions(data.subs);
+          }
           refreshAll();
           showToast('Berhasil memuat dari Cloud! ☁️', 'success');
         } else showToast('Gagal memuat dari Cloud', 'error');
@@ -534,6 +812,102 @@
     var fabBtn = document.getElementById('btn-add');
     if (fabBtn) fabBtn.addEventListener('click', function () { openModal(); });
 
+    // Add Wallet
+    var addWalletBtn = document.getElementById('btn-add-wallet');
+    if (addWalletBtn) addWalletBtn.addEventListener('click', function() {
+      var name = prompt('Masukkan nama dompet baru (misal: BCA, Gopay):');
+      if (name && name.trim()) {
+        var wallets = getWallets();
+        wallets.push({ id: 'w_' + generateId(), name: name.trim() });
+        saveWallets(wallets);
+        refreshAll();
+        showToast('Dompet ditambahkan', 'success');
+      }
+    });
+
+    // Add Goal
+    var addGoalBtn = document.getElementById('btn-add-goal');
+    if (addGoalBtn) addGoalBtn.addEventListener('click', function() {
+      var name = prompt('Nama Target Impian (misal: Liburan, Beli Motor):');
+      if (!name) return;
+      var target = prompt('Berapa target dana yang dikumpulkan? (angka saja):');
+      if (!target || isNaN(Number(target))) return showToast('Nominal target tidak valid', 'error');
+      
+      var goals = getGoals();
+      goals.push({ id: 'g_' + generateId(), name: name.trim(), target: Number(target), current: 0 });
+      saveGoals(goals);
+      refreshAll();
+      showToast('Target Impian ditambahkan!', 'success');
+    });
+
+    window.addFundToGoal = function(goalId) {
+      var goals = getGoals();
+      var gIdx = goals.findIndex(function(g) { return g.id === goalId; });
+      if (gIdx === -1) return;
+      
+      var g = goals[gIdx];
+      var amt = prompt('Berapa uang yang ingin disisihkan ke target "' + g.name + '" saat ini?');
+      if (!amt || isNaN(Number(amt)) || Number(amt) <= 0) return;
+      
+      var numAmt = Number(amt);
+      
+      // Auto-create expense from default wallet
+      addTransaction({
+        type: 'expense',
+        category: 'Lainnya',
+        amount: numAmt,
+        description: 'Tabungan: ' + g.name,
+        date: getTodayISO(),
+        walletId: 'default'
+      });
+      
+      g.current += numAmt;
+      goals[gIdx] = g;
+      saveGoals(goals);
+      refreshAll();
+      showToast('Dana berhasil disisihkan ke Tabungan!', 'success');
+    };
+
+    // Set Budget
+    var btnSetBudget = document.getElementById('btn-set-budget');
+    if (btnSetBudget) btnSetBudget.addEventListener('click', function() {
+      var curr = getMonthlyBudget();
+      var val = prompt('Masukkan batas maksimal pengeluaran bulan ini (angka saja):', curr === 0 ? '' : curr);
+      if (val !== null) {
+        var num = Number(val);
+        if (!isNaN(num) && num >= 0) {
+          saveMonthlyBudget(num);
+          refreshAll();
+          showToast('Batas pengeluaran diatur', 'success');
+        } else {
+          showToast('Angka tidak valid', 'error');
+        }
+      }
+    });
+
+    // Add Subscription
+    var btnAddSub = document.getElementById('btn-add-sub');
+    if (btnAddSub) btnAddSub.addEventListener('click', function() {
+      var name = prompt('Nama tagihan rutin (misal: Netflix, Listrik):');
+      if (!name) return;
+      var amt = prompt('Nominal tagihan setiap bulannya:');
+      if (!amt || isNaN(Number(amt))) return showToast('Nominal tidak valid', 'error');
+      var date = prompt('Tanggal berapa jatuh temponya setiap bulan? (1-31):');
+      if (!date || isNaN(Number(date)) || Number(date) < 1 || Number(date) > 31) return showToast('Tanggal tidak valid', 'error');
+      
+      var subs = getSubscriptions();
+      subs.push({
+        id: 's_' + generateId(),
+        name: name.trim(),
+        amount: Number(amt),
+        date: Number(date),
+        category: 'Tagihan',
+        lastPaid: null
+      });
+      saveSubscriptions(subs);
+      showToast('Tagihan rutin berhasil dijadwalkan!', 'success');
+    });
+
     // Modal close
     var closeBtn = document.getElementById('modal-close');
     if (closeBtn) closeBtn.addEventListener('click', closeModal);
@@ -546,8 +920,48 @@
     var typeSelect = document.querySelector('[name="type"]');
     if (typeSelect) typeSelect.addEventListener('change', function (e) { updateCategoryOptions(e.target.value); });
 
-    // Form submit
+    // Smart Input (AI Parser)
+    var smartInput = document.getElementById('smart-input');
     var form = document.getElementById('form-transaction');
+    if (smartInput && form) {
+      smartInput.addEventListener('input', function(e) {
+        var text = e.target.value.trim();
+        if (!text) return;
+        
+        var amountMatch = text.match(/\d+[\.,]?\d*/g);
+        var amount = 0;
+        if (amountMatch) {
+          var numbers = amountMatch.map(function(n) { return Number(n.replace(/[\.,]/g, '')); });
+          amount = Math.max.apply(null, numbers);
+        }
+        
+        var desc = text.replace(amount, '').trim().replace(/^[\W_]+|[\W_]+$/g, '').trim();
+        
+        var typeSelect = form.querySelector('[name="type"]');
+        var catSelect = form.querySelector('[name="category"]');
+        var amtInput = form.querySelector('[name="amount"]');
+        var descInput = form.querySelector('[name="description"]');
+        
+        if (amount > 0) amtInput.value = amount;
+        if (desc) descInput.value = desc;
+        
+        typeSelect.value = 'expense';
+        updateCategoryOptions('expense');
+        var lowerDesc = desc.toLowerCase();
+        var guessedCat = 'Lainnya';
+        if (lowerDesc.match(/makan|minum|kopi|coffee|food|grabfood|gofood|snack|roti|rokok|sbux|starbucks/)) guessedCat = 'Makan & Minum';
+        else if (lowerDesc.match(/gojek|grab|bensin|parkir|tol|krl|mrt|bus|tiket/)) guessedCat = 'Transportasi';
+        else if (lowerDesc.match(/belanja|supermarket|minimarket|indomaret|alfamart|baju|sepatu|tokopedia|shopee/)) guessedCat = 'Belanja';
+        else if (lowerDesc.match(/tagihan|listrik|air|internet|wifi|kos|kontrakan|netflix|spotify/)) guessedCat = 'Tagihan';
+        else if (lowerDesc.match(/nonton|bioskop|game|main|liburan/)) guessedCat = 'Hiburan';
+        else if (lowerDesc.match(/obat|dokter|rs|klinik|apotek|vitamin/)) guessedCat = 'Kesehatan';
+        else if (lowerDesc.match(/spp|buku|kursus|sekolah/)) guessedCat = 'Pendidikan';
+        
+        catSelect.value = guessedCat;
+      });
+    }
+
+    // Form submit
     if (form) form.addEventListener('submit', function (e) {
       e.preventDefault();
       var data = {
@@ -555,7 +969,8 @@
         category: form.querySelector('[name="category"]').value,
         amount: form.querySelector('[name="amount"]').value,
         description: form.querySelector('[name="description"]').value,
-        date: form.querySelector('[name="date"]').value
+        date: form.querySelector('[name="date"]').value,
+        walletId: form.querySelector('[name="walletId"]') ? form.querySelector('[name="walletId"]').value : 'default'
       };
       if (!data.amount || Number(data.amount) <= 0) { showToast('Jumlah harus lebih dari 0', 'error'); return; }
       if (editingId) { updateTransaction(editingId, data); showToast('Transaksi diperbarui', 'success'); }
@@ -647,8 +1062,122 @@
       document.getElementById('btn-sync-download').addEventListener('click', function () { syncModal.classList.remove('active'); document.body.style.overflow = ''; downloadFromDrive(); });
     }
 
+    // ============ PIN LOCK ============
+    var pinScreen = document.getElementById('pin-screen');
+    var pinDots = document.querySelectorAll('.pin-dot');
+    var pinTitle = document.getElementById('pin-title');
+    var pinSubtitle = document.getElementById('pin-subtitle');
+    var btnForgotPin = document.getElementById('btn-forgot-pin');
+    
+    var savedPin = localStorage.getItem('cashme_pin');
+    var isSettingUp = false;
+    var currentInput = '';
+    var setupFirstPin = '';
+    
+    if (savedPin) {
+      pinScreen.classList.add('active');
+    } else {
+      pinScreen.classList.remove('active');
+    }
+    
+    function updatePinDots() {
+      pinDots.forEach(function(dot, i) {
+        if (i < currentInput.length) dot.classList.add('filled');
+        else dot.classList.remove('filled', 'error');
+      });
+    }
+    
+    function shakeDots() {
+      pinDots.forEach(function(dot) {
+        dot.classList.add('error');
+        setTimeout(function() { dot.classList.remove('error'); }, 400);
+      });
+      currentInput = '';
+      setTimeout(updatePinDots, 400);
+    }
+    
+    document.querySelectorAll('.numpad-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        if (this.id === 'btn-pin-clear') {
+          currentInput = '';
+          updatePinDots();
+          return;
+        }
+        if (this.id === 'btn-pin-del') {
+          currentInput = currentInput.slice(0, -1);
+          updatePinDots();
+          return;
+        }
+        
+        var val = this.dataset.val;
+        if (val && currentInput.length < 6) {
+          currentInput += val;
+          updatePinDots();
+          
+          if (currentInput.length === 6) {
+            setTimeout(function() {
+              if (isSettingUp) {
+                if (!setupFirstPin) {
+                  setupFirstPin = currentInput;
+                  currentInput = '';
+                  updatePinDots();
+                  pinTitle.textContent = 'Konfirmasi PIN';
+                  pinSubtitle.textContent = 'Masukkan kembali PIN Anda';
+                } else {
+                  if (currentInput === setupFirstPin) {
+                    localStorage.setItem('cashme_pin', currentInput);
+                    showToast('PIN berhasil diatur!', 'success');
+                    pinScreen.classList.remove('active');
+                    savedPin = currentInput;
+                  } else {
+                    showToast('PIN tidak cocok, coba lagi', 'error');
+                    setupFirstPin = '';
+                    shakeDots();
+                    pinTitle.textContent = 'Atur PIN Baru';
+                    pinSubtitle.textContent = 'Buat 6 digit PIN untuk keamanan';
+                  }
+                }
+              } else {
+                if (currentInput === savedPin) {
+                  pinScreen.classList.remove('active');
+                  showToast('Akses Diberikan', 'success');
+                  currentInput = '';
+                  updatePinDots();
+                } else {
+                  shakeDots();
+                }
+              }
+            }, 100);
+          }
+        }
+      });
+    });
+    
+    if (btnForgotPin) {
+      btnForgotPin.addEventListener('click', function() {
+        if (confirm('Anda yakin ingin mereset PIN? Jika Anda lupa PIN, mereset akan menghapus kunci PIN. Lanjutkan?')) {
+          localStorage.removeItem('cashme_pin');
+          savedPin = null;
+          pinScreen.classList.remove('active');
+          showToast('PIN berhasil di-reset', 'info');
+        }
+      });
+    }
+
+    // Fungsi global agar bisa dipanggil dari HTML
+    window.setupPinLock = function() {
+      isSettingUp = true;
+      setupFirstPin = '';
+      currentInput = '';
+      updatePinDots();
+      pinScreen.classList.add('active');
+      pinTitle.textContent = 'Atur PIN Baru';
+      pinSubtitle.textContent = 'Buat 6 digit PIN untuk keamanan';
+    };
+
     // Initial render
     refreshAll();
+    checkSubscriptions();
 
     // Animate
     document.querySelectorAll('.animate-in').forEach(function (el, i) {

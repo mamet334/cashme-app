@@ -37,9 +37,9 @@
 .dark {
   --bg-primary: #0F172A;
   --bg-secondary: #1E293B;
-  --bg-card: rgba(30, 41, 59, 0.75);
-  --bg-card-hover: rgba(30, 41, 59, 0.9);
-  --bg-input: #1E293B;
+  --bg-card: rgba(30, 41, 59, 0.45); /* Agak transparan */
+  --bg-card-hover: rgba(30, 41, 59, 0.65);
+  --bg-input: rgba(30, 41, 59, 0.6);
   --bg-modal: rgba(0, 0, 0, 0.6);
   --text-primary: #F1F5F9;
   --text-secondary: #94A3B8;
@@ -69,6 +69,17 @@ body {
 }
 
 /* ---- Background Decoration ---- */
+.bg-pattern {
+  position: fixed;
+  top: 0; left: 0; width: 100vw; height: 100vh;
+  background-image: url('../img/bg.png');
+  background-size: cover;
+  background-position: center;
+  opacity: 0.35; /* Ditingkatkan agar lebih terlihat */
+  z-index: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
 body::before {
   content: '';
   position: fixed;
@@ -230,7 +241,6 @@ body::after {
 
 .stat-card {
   background: var(--bg-card);
-  backdrop-filter: blur(16px);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 18px 20px;
@@ -238,23 +248,10 @@ body::after {
   position: relative;
   overflow: hidden;
 }
-.stat-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-}
 .stat-card:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
 }
-
-#card-balance::before { background: linear-gradient(90deg, #7C3AED, #3B82F6); }
-#card-income::before { background: linear-gradient(90deg, #10B981, #06B6D4); }
-#card-expense::before { background: linear-gradient(90deg, #EF4444, #F97316); }
 
 .card-row {
   display: grid;
@@ -393,7 +390,6 @@ body::after {
   gap: 12px;
   padding: 12px 14px;
   background: var(--bg-card);
-  backdrop-filter: blur(10px);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   margin-bottom: 8px;
@@ -479,7 +475,6 @@ body::after {
    ======================================== */
 .chart-card {
   background: var(--bg-card);
-  backdrop-filter: blur(16px);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 20px;
@@ -708,32 +703,33 @@ select.form-control {
    ======================================== */
 #toast-container {
   position: fixed;
-  top: 16px;
+  top: 24px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 300;
+  z-index: 9999;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-width: 400px;
+  gap: 12px;
+  max-width: 450px;
   width: 90%;
 }
 .toast {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  border-radius: var(--radius-md);
-  background: var(--bg-primary);
+  gap: 16px;
+  padding: 16px 20px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+  backdrop-filter: blur(24px);
   border: 1px solid var(--border);
-  box-shadow: var(--shadow-lg);
-  transform: translateY(-20px);
+  box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+  transform: translateY(-40px) scale(0.9);
   opacity: 0;
-  transition: all 0.3s ease;
+  transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
-.toast.show { transform: translateY(0); opacity: 1; }
-.toast-icon { font-size: 18px; }
-.toast-message { font-size: 0.85rem; font-weight: 500; }
+.toast.show { transform: translateY(0) scale(1); opacity: 1; }
+.toast-icon { font-size: 28px; }
+.toast-message { font-size: 1.05rem; font-weight: 600; line-height: 1.4; color: var(--text-primary); }
 
 /* ========================================
    Animations
@@ -779,4 +775,90 @@ select.form-control {
   font-weight: 500;
   opacity: 0.5;
   margin-top: 10px;
+}
+
+/* ========================================
+   PIN Lock Screen
+   ======================================== */
+.pin-screen {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: var(--bg-primary);
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+.pin-screen.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+.pin-container {
+  width: 100%;
+  max-width: 360px;
+  padding: 32px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.pin-dots {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 48px;
+}
+.pin-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: all 0.2s ease;
+}
+.pin-dot.filled {
+  background: var(--accent);
+  transform: scale(1.2);
+  box-shadow: 0 0 10px var(--accent-light);
+}
+.pin-dot.error {
+  background: var(--expense);
+  animation: shake 0.4s;
+}
+.numpad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px 32px;
+  width: 100%;
+}
+.numpad-btn {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  border: none;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  font-weight: 600;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin: 0 auto;
+}
+.numpad-btn:hover {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+.numpad-btn:active {
+  transform: scale(0.9);
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
 }

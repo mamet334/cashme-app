@@ -17,16 +17,60 @@
   </script>
 </head>
 <body>
+  <!-- ======== PIN Lock Screen ======== -->
+  <div id="pin-screen" class="pin-screen active">
+    <div class="pin-container animate-in">
+      <div class="app-logo-icon" style="font-size: 48px; margin-bottom: 16px;">
+        <img src="img/logo.png" style="width: 64px; border-radius: 12px; filter: drop-shadow(0 4px 12px rgba(16,185,129,0.5));">
+      </div>
+      <h2 id="pin-title">Masukkan PIN</h2>
+      <p id="pin-subtitle" style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 24px;">Aplikasi terkunci untuk keamanan</p>
+      
+      <div class="pin-dots" id="pin-dots">
+        <div class="pin-dot"></div>
+        <div class="pin-dot"></div>
+        <div class="pin-dot"></div>
+        <div class="pin-dot"></div>
+        <div class="pin-dot"></div>
+        <div class="pin-dot"></div>
+      </div>
 
+      <div class="numpad">
+        <button class="numpad-btn" data-val="1">1</button>
+        <button class="numpad-btn" data-val="2">2</button>
+        <button class="numpad-btn" data-val="3">3</button>
+        <button class="numpad-btn" data-val="4">4</button>
+        <button class="numpad-btn" data-val="5">5</button>
+        <button class="numpad-btn" data-val="6">6</button>
+        <button class="numpad-btn" data-val="7">7</button>
+        <button class="numpad-btn" data-val="8">8</button>
+        <button class="numpad-btn" data-val="9">9</button>
+        <button class="numpad-btn" id="btn-pin-clear" style="color: var(--expense); font-size: 1rem;">C</button>
+        <button class="numpad-btn" data-val="0">0</button>
+        <button class="numpad-btn" id="btn-pin-del">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/><line x1="18" y1="9" x2="12" y2="15"/><line x1="12" y1="9" x2="18" y2="15"/></svg>
+        </button>
+      </div>
+      
+      <button id="btn-setup-pin" class="btn-submit" style="display: none; margin-top: 24px;">Atur PIN Baru</button>
+      <button id="btn-forgot-pin" style="background:none; border:none; color: var(--text-muted); margin-top: 20px; font-size: 0.8rem; cursor: pointer;">Lupa PIN? (Reset)</button>
+    </div>
+  </div>
+
+  <div class="bg-pattern"></div>
   <div class="app-container">
 
     <!-- ======== Header ======== -->
     <header class="app-header animate-in">
-      <div class="app-logo">
-        <div class="app-logo-icon">💰</div>
-        <span class="app-logo-text">CashMe</span>
+      <div class="app-logo" style="display: flex; align-items: center;">
+        <img src="img/logo.png" alt="Logo" style="width: 36px; height: 36px; margin-right: 12px; border-radius: 8px; filter: drop-shadow(0 2px 8px rgba(16,185,129,0.5));">
+        <span class="app-logo-text" style="background: linear-gradient(135deg, #10B981, #34D399); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">CashMe</span>
+        <div id="streak-badge" style="display:none; background: #FEF08A; color: #B45309; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; margin-left: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">🔥 1 Hari</div>
       </div>
       <div class="header-actions">
+        <button class="btn-icon" id="btn-lock" title="Atur PIN Keamanan" onclick="window.setupPinLock()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+        </button>
         <button class="btn-icon" id="btn-sync" title="Sync ke Google Drive">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
         </button>
@@ -77,6 +121,32 @@
       </div>
     </section>
 
+    <!-- ======== Budget Progress ======== -->
+    <section class="budget-section animate-in" style="margin-top: 1rem; background: var(--bg-card); padding: 16px; border-radius: 16px; border: 1px solid var(--border-color);">
+      <div class="budget-header" style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+        <span style="font-weight: 600; font-size: 0.9rem;">Batas Pengeluaran Bulan Ini</span>
+        <button id="btn-set-budget" style="background:none; border:none; color:#10B981; cursor:pointer; font-size: 0.8rem; font-weight: bold;">Atur Batas</button>
+      </div>
+      <div style="font-size: 0.8rem; color: #94A3B8; margin-bottom: 8px; display: flex; justify-content: space-between;" id="budget-text">
+        <span id="budget-spent">Rp 0</span>
+        <span id="budget-limit">dari Rp 0</span>
+      </div>
+      <div class="progress-bg" style="width: 100%; height: 10px; background: rgba(148,163,184,0.1); border-radius: 5px; overflow: hidden;">
+        <div id="budget-progress-bar" style="height: 100%; width: 0%; background: #10B981; transition: width 0.3s ease, background 0.3s ease;"></div>
+      </div>
+    </section>
+
+    <!-- ======== Wallets List ======== -->
+    <section class="wallets-section animate-in" style="margin-top: 1rem;">
+      <div class="section-header" style="margin-bottom: 0.75rem;">
+        <div><h2 class="section-title">Daftar Dompet</h2></div>
+        <button class="btn-icon" id="btn-add-wallet" title="Tambah Dompet" style="background: rgba(16, 185, 129, 0.1); color: #10B981; padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; width: auto; height: auto;">+ Dompet</button>
+      </div>
+      <div class="wallets-container" id="wallets-container" style="display: flex; gap: 0.75rem; overflow-x: auto; padding-bottom: 0.5rem; scrollbar-width: thin;">
+        <!-- Wallets will be injected here -->
+      </div>
+    </section>
+
     <!-- ======== Charts ======== -->
     <section class="animate-in">
       <div class="chart-card">
@@ -94,7 +164,24 @@
       </div>
     </section>
 
-    <!-- ======== Transaction List ======== -->
+      <!-- ======== Goals Section ======== -->
+      <section class="goals-section animate-in" style="margin-bottom: 24px;">
+        <div class="section-header">
+          <div>
+          <h2 class="section-title">Anggaran</h2>
+          <p class="section-subtitle">Pantau pengeluaran Anda</p>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn-icon" id="btn-set-budget" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px 12px; font-size: 0.8rem; font-weight: 600;">Atur Batas</button>
+          <button class="btn-icon" id="btn-add-sub" style="background: var(--accent); color: white; border: none; border-radius: var(--radius-sm); padding: 4px 12px; font-size: 0.8rem; font-weight: 600;">+ Tagihan</button>
+        </div>
+      </div>
+        <div id="goals-list" style="display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px;">
+          <!-- Goals items will be injected here -->
+        </div>
+      </section>
+
+      <!-- ======== Transactions List ======== -->
     <section class="animate-in">
       <div class="section-header">
         <div>
@@ -127,13 +214,21 @@
   <!-- ======== Modal: Add/Edit Transaction ======== -->
   <div class="modal-overlay" id="modal-transaction">
     <div class="modal-content">
-      <div class="modal-handle"></div>
+      <div class="modal-content animate-in">
       <div class="modal-header">
-        <h2 id="modal-title">Tambah Transaksi</h2>
-        <button class="btn-icon" id="modal-close" title="Tutup">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        <h2>Transaksi</h2>
+        <button id="modal-close" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
+
+      <!-- Smart Input (AI Parser) -->
+      <div class="form-group" style="margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px dashed var(--border);">
+        <label class="form-label" style="color: var(--accent);">✨ Input Cerdas (Otomatis)</label>
+        <input type="text" id="smart-input" class="form-control" placeholder="Cth: Beli kopi 25000 di Sbux" autocomplete="off" style="border-color: var(--accent-light);">
+        <div id="smart-input-hint" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 6px;">Ketik pengeluaran Anda, kami yang akan mengisi form di bawah.</div>
+      </div>
+
       <form id="form-transaction">
         <div class="form-row">
           <div class="form-group">
@@ -148,9 +243,15 @@
             <input type="date" name="date" class="form-control" required>
           </div>
         </div>
-        <div class="form-group">
-          <label class="form-label">Kategori</label>
-          <select name="category" class="form-control" required></select>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Kategori</label>
+            <select name="category" class="form-control" required></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Dompet</label>
+            <select name="walletId" class="form-control" required></select>
+          </div>
         </div>
         <div class="form-group">
           <label class="form-label">Jumlah (Rp)</label>
@@ -170,9 +271,6 @@
   </div>
 
   <!-- ======== Sync Modal ======== -->
-   <div class="watermark animate-in">
-      CashMe App by Mamet334
-    </div>
   <div class="confirm-overlay" id="sync-modal">
     <div class="confirm-box" style="max-width: 400px;">
       <h3>Google Drive Sync</h3>
