@@ -125,7 +125,10 @@
     <section class="budget-section animate-in" style="margin-top: 1rem; background: var(--bg-card); padding: 16px; border-radius: 16px; border: 1px solid var(--border-color);">
       <div class="budget-header" style="display: flex; justify-content: space-between; margin-bottom: 8px;">
         <span style="font-weight: 600; font-size: 0.9rem;">Batas Pengeluaran Bulan Ini</span>
-        <button id="btn-set-budget" style="background:none; border:none; color:#10B981; cursor:pointer; font-size: 0.8rem; font-weight: bold;">Atur Batas</button>
+        <div style="display: flex; gap: 8px;">
+          <button id="btn-set-budget" style="background:none; border:none; color:#10B981; cursor:pointer; font-size: 0.8rem; font-weight: bold;">Atur Batas</button>
+          <button id="btn-add-sub" style="background:var(--accent); color:white; border:none; border-radius:4px; padding: 2px 8px; cursor:pointer; font-size: 0.75rem; font-weight: bold;">+ Tagihan</button>
+        </div>
       </div>
       <div style="font-size: 0.8rem; color: #94A3B8; margin-bottom: 8px; display: flex; justify-content: space-between;" id="budget-text">
         <span id="budget-spent">Rp 0</span>
@@ -168,14 +171,11 @@
       <section class="goals-section animate-in" style="margin-bottom: 24px;">
         <div class="section-header">
           <div>
-          <h2 class="section-title">Anggaran</h2>
-          <p class="section-subtitle">Pantau pengeluaran Anda</p>
+            <h2 class="section-title">Target Impian</h2>
+            <p class="section-subtitle">Tabung untuk masa depan</p>
+          </div>
+          <button class="btn-icon" id="btn-add-goal" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px 12px; font-size: 0.8rem; font-weight: 600;">+ Target</button>
         </div>
-        <div style="display: flex; gap: 8px;">
-          <button class="btn-icon" id="btn-set-budget" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px 12px; font-size: 0.8rem; font-weight: 600;">Atur Batas</button>
-          <button class="btn-icon" id="btn-add-sub" style="background: var(--accent); color: white; border: none; border-radius: var(--radius-sm); padding: 4px 12px; font-size: 0.8rem; font-weight: 600;">+ Tagihan</button>
-        </div>
-      </div>
         <div id="goals-list" style="display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px;">
           <!-- Goals items will be injected here -->
         </div>
@@ -213,10 +213,9 @@
 
   <!-- ======== Modal: Add/Edit Transaction ======== -->
   <div class="modal-overlay" id="modal-transaction">
-    <div class="modal-content">
-      <div class="modal-content animate-in">
+    <div class="modal-content animate-in">
       <div class="modal-header">
-        <h2>Transaksi</h2>
+        <h2 id="modal-title">Transaksi</h2>
         <button id="modal-close" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
