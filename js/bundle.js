@@ -455,23 +455,35 @@
         var fileId = await findDriveFile();
         var txs = getTransactions();
         var fileContent = JSON.stringify(txs);
-        var metadata = { name: DRIVE_FILE_NAME, parents: ['appDataFolder'] };
 
-        var form = new FormData();
-        form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-        form.append('file', new Blob([fileContent], { type: 'application/json' }));
-
-        var url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
-        var method = 'POST';
-
-        if (fileId) {
-          url = 'https://www.googleapis.com/upload/drive/v3/files/' + fileId + '?uploadType=multipart';
-          method = 'PATCH';
+        // Jika file belum ada, buat file kosong terlebih dahulu di appDataFolder
+        if (!fileId) {
+          var createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
+            method: 'POST',
+            headers: { 
+              'Authorization': 'Bearer ' + accessToken,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ name: DRIVE_FILE_NAME, parents: ['appDataFolder'] })
+          });
+          if (!createRes.ok) throw new Error('Gagal membuat file');
+          var createData = await createRes.json();
+          fileId = createData.id;
         }
 
-        var res = await fetch(url, { method: method, headers: { Authorization: 'Bearer ' + accessToken }, body: form });
-        if (res.ok) showToast('Berhasil disimpan ke Cloud! ☁️', 'success');
-        else showToast('Gagal menyimpan ke Cloud', 'error');
+        // Upload/timpa isi file dengan data JSON terbaru
+        var uploadRes = await fetch('https://www.googleapis.com/upload/drive/v3/files/' + fileId + '?uploadType=media', {
+          method: 'PATCH',
+          headers: { 
+            'Authorization': 'Bearer ' + accessToken,
+            'Content-Type': 'application/json'
+          },
+          body: fileContent
+        });
+
+        if (uploadRes.ok) showToast('Berhasil disimpan ke Cloud! ☁️', 'success');
+        else throw new Error('Gagal upload isi file');
+        
       } catch (e) {
         console.error(e);
         showToast('Terjadi kesalahan sinkronisasi', 'error');
