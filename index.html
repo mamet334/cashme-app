@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="CashMe — Aplikasi pencatat keuangan pribadi. Catat pemasukan dan pengeluaran dengan mudah.">
+  <title>CashMe — Keuangan Pribadi</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <!-- Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js');
+    }
+  </script>
+</head>
+<body>
+
+  <div class="app-container">
+
+    <!-- ======== Header ======== -->
+    <header class="app-header animate-in">
+      <div class="app-logo">
+        <div class="app-logo-icon">💰</div>
+        <span class="app-logo-text">CashMe</span>
+      </div>
+      <div class="header-actions">
+        <button class="btn-icon" id="btn-sync" title="Sync ke Google Drive">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        </button>
+        <button class="btn-icon" id="btn-export" title="Export CSV">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </button>
+        <button class="btn-icon" id="btn-theme" title="Mode Gelap">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- ======== Month Navigation ======== -->
+    <nav class="month-nav animate-in">
+      <button id="btn-prev-month" title="Bulan Sebelumnya">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <span id="current-month-label">Mei 2026</span>
+      <button id="btn-next-month" title="Bulan Selanjutnya">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+    </nav>
+
+    <!-- ======== Dashboard Cards ======== -->
+    <section class="dashboard-cards">
+      <div class="stat-card animate-in" id="card-balance">
+        <div class="card-header">
+          <div class="card-icon">💎</div>
+          <span class="card-label">Total Saldo</span>
+        </div>
+        <div class="card-value" data-target="0">Rp 0</div>
+      </div>
+      <div class="card-row">
+        <div class="stat-card animate-in" id="card-income">
+          <div class="card-header">
+            <div class="card-icon">📈</div>
+            <span class="card-label">Pemasukan</span>
+          </div>
+          <div class="card-value" data-target="0">Rp 0</div>
+        </div>
+        <div class="stat-card animate-in" id="card-expense">
+          <div class="card-header">
+            <div class="card-icon">📉</div>
+            <span class="card-label">Pengeluaran</span>
+          </div>
+          <div class="card-value" data-target="0">Rp 0</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======== Charts ======== -->
+    <section class="animate-in">
+      <div class="chart-card">
+        <h3>📊 Trend 6 Bulan Terakhir</h3>
+        <div class="chart-wrapper">
+          <canvas id="chart-bar"></canvas>
+        </div>
+      </div>
+      <div class="chart-card">
+        <h3>🍩 Distribusi Pengeluaran</h3>
+        <div class="chart-wrapper">
+          <canvas id="chart-donut"></canvas>
+          <div class="chart-empty">Belum ada data pengeluaran</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======== Transaction List ======== -->
+    <section class="animate-in">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">Transaksi</h2>
+          <span class="section-subtitle" id="tx-count">0 transaksi</span>
+        </div>
+      </div>
+
+      <div class="filter-bar">
+        <button class="filter-btn active" data-filter="all">Semua</button>
+        <button class="filter-btn" data-filter="income">Pemasukan</button>
+        <button class="filter-btn" data-filter="expense">Pengeluaran</button>
+      </div>
+
+      <div class="search-box">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="search-input" placeholder="Cari transaksi...">
+      </div>
+
+      <div id="transaction-list"></div>
+    </section>
+
+  </div>
+
+  <!-- ======== FAB Button ======== -->
+  <button class="fab" id="btn-add" title="Tambah Transaksi (Ctrl+N)">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  </button>
+
+  <!-- ======== Modal: Add/Edit Transaction ======== -->
+  <div class="modal-overlay" id="modal-transaction">
+    <div class="modal-content">
+      <div class="modal-handle"></div>
+      <div class="modal-header">
+        <h2 id="modal-title">Tambah Transaksi</h2>
+        <button class="btn-icon" id="modal-close" title="Tutup">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <form id="form-transaction">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Tipe</label>
+            <select name="type" class="form-control" required>
+              <option value="expense">💸 Pengeluaran</option>
+              <option value="income">💰 Pemasukan</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Tanggal</label>
+            <input type="date" name="date" class="form-control" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Kategori</label>
+          <select name="category" class="form-control" required></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Jumlah (Rp)</label>
+          <input type="number" name="amount" class="form-control" placeholder="50000" min="1" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Keterangan</label>
+          <input type="text" name="description" class="form-control" placeholder="Makan siang, bensin, dll..." maxlength="100">
+        </div>
+        <button type="submit" class="btn-submit">Simpan Transaksi</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ======== Sync Modal ======== -->
+  <div class="confirm-overlay" id="sync-modal">
+    <div class="confirm-box" style="max-width: 400px;">
+      <h3>Google Drive Sync</h3>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px;">
+        Pastikan Anda sudah login Google.
+      </p>
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <button id="btn-sync-upload" class="btn-submit" style="margin: 0;">⬆️ Upload ke Cloud (Simpan)</button>
+        <button id="btn-sync-download" class="btn-submit" style="margin: 0; background: var(--bg-secondary); color: var(--text-primary);">⬇️ Download dari Cloud (Muat)</button>
+        <button id="btn-sync-cancel" class="filter-btn" style="margin-top: 8px;">Batal</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== Confirm Dialog ======== -->
+  <div class="confirm-overlay" id="confirm-dialog">
+    <div class="confirm-box">
+      <p>Yakin ingin menghapus transaksi ini?</p>
+      <div class="confirm-actions">
+        <button id="confirm-no">Batal</button>
+        <button id="confirm-yes">Hapus</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== Toast Container ======== -->
+  <div id="toast-container"></div>
+
+  <script src="js/bundle.js"></script>
+</body>
+</html>
