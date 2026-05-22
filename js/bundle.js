@@ -1287,10 +1287,21 @@
                   pinSubtitle.textContent = 'Masukkan kembali PIN Anda';
                 } else {
                   if (currentInput === setupFirstPin) {
-                    localStorage.setItem('cashme_pin', currentInput);
-                    showToast('PIN berhasil diatur!', 'success');
-                    pinScreen.classList.remove('active');
-                    savedPin = currentInput;
+                    customPrompt('Pertanyaan Keamanan', 'Ketik kata rahasia (contoh: nama hewan peliharaan) untuk pemulihan jika Anda lupa PIN:', '', function(ans) {
+                      if (ans && ans.trim()) {
+                        localStorage.setItem('cashme_pin', currentInput);
+                        localStorage.setItem('cashme_pin_sec', ans.trim().toLowerCase());
+                        showToast('PIN & Kata Rahasia berhasil diatur!', 'success');
+                        pinScreen.classList.remove('active');
+                        savedPin = currentInput;
+                      } else {
+                        showToast('Kata rahasia wajib diisi!', 'error');
+                        setupFirstPin = '';
+                        shakeDots();
+                        pinTitle.textContent = 'Atur PIN Baru';
+                        pinSubtitle.textContent = 'Buat 6 digit PIN untuk keamanan';
+                      }
+                    });
                   } else {
                     showToast('PIN tidak cocok, coba lagi', 'error');
                     setupFirstPin = '';
@@ -1317,14 +1328,29 @@
     
     if (btnForgotPin) {
       btnForgotPin.addEventListener('click', function() {
-        customConfirm('Reset PIN?', 'Anda yakin ingin mereset PIN? Jika Anda lupa PIN, mereset akan menghapus kunci PIN. Lanjutkan?', function(yes) {
-          if (yes) {
-            localStorage.removeItem('cashme_pin');
-            savedPin = null;
-            pinScreen.classList.remove('active');
-            showToast('PIN berhasil di-reset', 'info');
-          }
-        });
+        var secAns = localStorage.getItem('cashme_pin_sec');
+        if (secAns) {
+          customPrompt('Pemulihan PIN', 'Masukkan kata rahasia keamanan Anda:', '', function(ans) {
+            if (ans && ans.trim().toLowerCase() === secAns) {
+              localStorage.removeItem('cashme_pin');
+              localStorage.removeItem('cashme_pin_sec');
+              savedPin = null;
+              pinScreen.classList.remove('active');
+              showToast('Kunci PIN berhasil dibuka & dihapus!', 'success');
+            } else if (ans !== null) {
+              showToast('Kata rahasia salah!', 'error');
+            }
+          });
+        } else {
+          customConfirm('Reset PIN?', 'Anda belum mengatur kata rahasia. Yakin ingin mereset PIN?', function(yes) {
+            if (yes) {
+              localStorage.removeItem('cashme_pin');
+              savedPin = null;
+              pinScreen.classList.remove('active');
+              showToast('PIN berhasil di-reset', 'info');
+            }
+          });
+        }
       });
     }
 
