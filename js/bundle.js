@@ -455,35 +455,44 @@
         var fileId = await findDriveFile();
         var txs = getTransactions();
         var fileContent = JSON.stringify(txs);
+        var metadata = { name: DRIVE_FILE_NAME };
+        
+        if (!fileId) metadata.parents = ['appDataFolder'];
 
-        // Jika file belum ada, buat file kosong terlebih dahulu di appDataFolder
-        if (!fileId) {
-          var createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
-            method: 'POST',
-            headers: { 
-              'Authorization': 'Bearer ' + accessToken,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ name: DRIVE_FILE_NAME, parents: ['appDataFolder'] })
-          });
-          if (!createRes.ok) throw new Error('Gagal membuat file');
-          var createData = await createRes.json();
-          fileId = createData.id;
+        var boundary = '-------314159265358979323846';
+        var delimiter = "\r\n--" + boundary + "\r\n";
+        var close_delim = "\r\n--" + boundary + "--";
+
+        var body = delimiter +
+          'Content-Type: application/json\r\n\r\n' +
+          JSON.stringify(metadata) +
+          delimiter +
+          'Content-Type: application/json\r\n\r\n' +
+          fileContent +
+          close_delim;
+
+        var url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+        var method = 'POST';
+        if (fileId) {
+          url = 'https://www.googleapis.com/upload/drive/v3/files/' + fileId + '?uploadType=multipart';
+          method = 'PATCH';
         }
 
-        // Upload/timpa isi file dengan data JSON terbaru
-        var uploadRes = await fetch('https://www.googleapis.com/upload/drive/v3/files/' + fileId + '?uploadType=media', {
-          method: 'PATCH',
-          headers: { 
+        var res = await fetch(url, {
+          method: method,
+          headers: {
             'Authorization': 'Bearer ' + accessToken,
-            'Content-Type': 'application/json'
+            'Content-Type': 'multipart/related; boundary=' + boundary
           },
-          body: fileContent
+          body: body
         });
 
-        if (uploadRes.ok) showToast('Berhasil disimpan ke Cloud! ☁️', 'success');
-        else throw new Error('Gagal upload isi file');
-        
+        if (res.ok) showToast('Berhasil disimpan ke Cloud! ☁️', 'success');
+        else {
+          var err = await res.text();
+          console.error(err);
+          showToast('Gagal upload ke Cloud (Lihat Konsol)', 'error');
+        }
       } catch (e) {
         console.error(e);
         showToast('Terjadi kesalahan sinkronisasi', 'error');
